@@ -1,0 +1,35 @@
+name: Gorillatimeoffupdate
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Create a ZIP deploy package
+        run: zip -r timeoff_deploy.zip ./
+
+      - name: Set AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SECRET_ACCESS_KEY }}
+          aws-region: "us-east-1"
+
+      - name: Load deployment package to S3
+        run: aws s3 cp timeoff_deploy.zip s3://timeoff-jahescobar/
+
+      - name: Create a new timeoff-app Version
+        run: |
+          aws elasticbeanstalk create-application-version \
+          --application-name timeoff-app \
+          --source-bundle S3Bucket="timeoff-jahescobar",S3Key="timeoff_deploy.zip" \
+          --version-label "timeoffapp-${{ github.sha }}" \
+          --description "commit-sha-${{ github.sha }}"
+      - name: Deploy new timeoff-app version
+        run: aws elasticbeanstalk update-environment --environment-name timeoff-env --version-label "timeoffapp-${{ github.sha }}"
